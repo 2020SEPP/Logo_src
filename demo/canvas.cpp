@@ -7,9 +7,10 @@ Canvas::Canvas(QWidget *parent) : QWidget(parent)
 {
     CANVAS_WIDTH = (parent->width() * 3) / 4;
     CANVAS_HEIGHT = (parent->height() * 3) / 4;
-    CURR_POS = new QPointF(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+//    CURR_POS = new QPointF(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+    CURR_POS = new QPointF(parent->width() / 2, CANVAS_HEIGHT / 2);
     CURR_ANGLE = 90;
-    PEN_IS_DOWN = true;
+    PEN_IS_DOWN = true;  
 }
 
 // public
@@ -33,56 +34,218 @@ Canvas::paintEvent(QPaintEvent *)
     p.setPen(pen);
     style()->drawPrimitive(QStyle::PE_Widget, &opt, &p, this);
 
-//    for (QVector<QPointF> line : _lines)
-//    {
-//        p.drawLine(line.at(0), line.at(line.size() - 1));
-//        for(int j = 0; j < line.size() - 1; j++)
-//            p.drawLine(line.at(j), line.at(j+1));
-//    }
-
     for (QLineF line : LINES)
     {
         p.drawLine(line);
     }
-}
 
-void
-Canvas::mousePressEvent(QMouseEvent *ev)
-{
-    QVector<QPointF> line;
-    _lines.append(line);
-
-    QVector<QPointF> &lastline = _lines.last();
-    lastline.append(ev->pos());
-}
-
-void
-Canvas::mouseMoveEvent(QMouseEvent *ev)
-{
-    if (_lines.size() == 0)
+    for (circle_t cl : CIRCLES)
     {
-        QVector<QPointF> line;
-        _lines.append(line);
+        p.drawEllipse(cl.center, cl.rx, cl.ry);
     }
 
-
-    QVector<QPointF> &lastline = _lines.last();
-    lastline.append(ev->pos());
-
-    update();
+    const QPointF curr(CURR_POS->rx(), CURR_POS->ry());
+    p.drawPoint(curr);
 }
 
-void
-Canvas::mouseReleaseEvent(QMouseEvent *ev)
+// UTILS
+
+QString get_qreal_str(QString str)
 {
-    QVector<QPointF> &lastline = _lines.last();
-    lastline.append(ev->pos());
+//    qDebug() << "get qreal string: " << str << Qt::endl;
+    int index = 0;
+    while (index < str.length())
+    {
+        QChar ch = str.at(index);
+//        qDebug() << index << " : " << ch << Qt::endl;
+        if ((ch >= '0' && ch <= '9') || ch == '.')
+        {
+            index++;
+        }
+
+        else if (ch == ' ' || ch == ']')
+        {
+            break;
+        }
+
+        else
+        {
+            return "";
+        }
+    }
+
+    return str.left(index);
 }
 
 // SLOT
 void
+Canvas::parse_line(QString line)
+{
+    line = line.trimmed();
+    if (line == "")
+        return;
+
+//    qDebug() << "parse line: " << line << Qt::endl;
+
+    int line_index = 0;
+    QString inst;
+
+    while (line_index < line.length() && line.at(line_index) != ' ')
+        line_index++;
+
+    inst = line.left(line_index);
+//    qDebug() << "inst: " << inst << Qt::endl;
+
+    if (INSTRUCTIONS.indexOf(inst) != -1)
+    {
+        bool zro_arg_flag = false;
+        bool one_arg_flag = false;
+        bool two_arg_flag = false;
+
+        if (inst == "cs" || inst == "pu" || inst == "pd")
+        {
+            zro_arg_flag = true;
+            if (inst == "cs")
+                reset();
+            else if (inst == "pu")
+                penUp();
+            else if (inst == "pd")
+                penDown();
+        }
+
+        line = line.right(line.length() - line_index).trimmed();
+
+        if (zro_arg_flag)
+        {
+            parse_line(line);
+            return;
+        }
+
+        QString arg0 = get_qreal_str(line);
+//        qDebug() << "arg0: " << arg0;
+
+        if (arg0 == "")
+        {
+argument_type_err:
+            qDebug() << "ERROR!" << inst << "expect a real number as argument";
+            return;
+        }
+
+        line_index = arg0.length();
+
+
+        if (inst == "fd" || inst == "bk" || inst == "rt" || inst == "lt" ||
+                 inst == "setpc" || inst == "setbg")
+        {
+            one_arg_flag = true;
+
+            if (inst == "fd")
+                drawLine(arg0.toDouble(nullptr), true);
+            else if (inst == "bk")
+                drawLine(arg0.toDouble(nullptr), false);
+            else if (inst == "rt")
+                turnDirection(arg0.toDouble(nullptr), true);
+            else if (inst == "lt")
+                turnDirection(arg0.toDouble(nullptr), false);
+            else if (inst == "setpc")
+                setPC(arg0.toUInt(nullptr, 10));
+            else if (inst == "setbg")
+                emit setBG(arg0);
+        }
+
+        line = line.right(line.length() - line_index).trimmed();
+
+        if (one_arg_flag)
+        {
+            parse_line(line);
+            return;
+        }
+
+
+        if (inst == "setxy" || inst == "stampoval")
+        {
+            two_arg_flag = true;
+            QString arg1 = get_qreal_str(line);
+//            qDebug() << "arg1: " << arg1;
+
+            if (arg1 == "")
+                goto argument_type_err;
+
+            if (inst == "setxy")
+                setXT(arg0.toDouble(nullptr), arg1.toDouble(nullptr));
+            else if (inst == "stampoval")
+                stampoval(arg0.toDouble(nullptr), arg1.toDouble(nullptr));
+
+            line = line.right(line.length() - line_index).trimmed();
+        }
+
+        else if (inst == "repeat")
+        {
+            two_arg_flag = true;
+            if (line.at(0) != '[')
+            {
+                qDebug() << "ERROR! repeat: expect '['\n";
+                return;
+            }
+
+            int lbracket_index, rbracket_index;
+            if ((lbracket_index = line.indexOf('[')) == -1)
+                return;
+
+            int lbracket_count = 1;
+            int length = line.length();
+            int index = lbracket_index;
+
+            while (lbracket_count && index < length)
+            {
+                index++;
+                if (!lbracket_count)
+                    break;
+                if (line.at(index) == '[')
+                    lbracket_count++;
+                else if (line.at(index) == ']')
+                    lbracket_count--;
+            }
+
+            if (lbracket_count)
+            {
+                qDebug() << "ERROR! repeat: expect ']'\n";
+                return;
+            }
+
+            else {
+                rbracket_index = index;
+            }
+
+            for (int i = 0; i < arg0.toInt(); ++i)
+            {
+                qDebug() << lbracket_index << ' ' << line.at(lbracket_index);
+                qDebug() << rbracket_index << ' ' << line.at(rbracket_index);
+                parse_line(line.mid(lbracket_index + 1, rbracket_index - 1));
+            }
+
+            line = line.right(line.length() - rbracket_index - 1).trimmed();
+        }
+
+        if (two_arg_flag)
+        {
+            parse_line(line);
+            return;
+        }
+    }
+
+    qDebug() << "ERROR! unknown command " << line << Qt::endl;
+    return;
+}
+
+void
 Canvas::drawLine(qreal rlen, bool flag)
 {
+    if (flag)
+        qDebug() << "fd: " << rlen << Qt::endl;
+    else
+        qDebug() << "bk: " << rlen << Qt::endl;
+
     const QPointF aP1(CURR_POS->rx(), CURR_POS->ry());
 
     QLineF line;
@@ -98,12 +261,20 @@ Canvas::drawLine(qreal rlen, bool flag)
 
     CURR_POS->setX(line.pointAt(1).x());
     CURR_POS->setY(line.pointAt(1).y());
+
+    if (flag == false)
+        addAngle(180);
     update();
 }
 
 void
 Canvas::turnDirection(qreal delta, bool flag)
 {
+    if (flag)
+        qDebug() << "set direction: " << delta << " right\n";
+    else
+        qDebug() << "set direction: " << delta << " left\n";
+
     if (flag)
         addAngle(delta * (-1));
     else
@@ -113,24 +284,38 @@ Canvas::turnDirection(qreal delta, bool flag)
 void
 Canvas::reset()
 {
+    qDebug() << "reset" << Qt::endl;
+
     LINES.clear();
-    _lines.clear();
+    CIRCLES.clear();
 
     CURR_POS->setX(CANVAS_WIDTH/2);
     CURR_POS->setY(CANVAS_HEIGHT/2);
+    CURR_ANGLE = 90;
 
     update();
 }
 
 void
-Canvas::penDownUp(bool flag)
+Canvas::penDown()
 {
-    PEN_IS_DOWN = flag;
+    qDebug() << "pen down" << Qt::endl;
+    PEN_IS_DOWN = true;
+}
+
+void
+Canvas::penUp()
+{
+    qDebug() << "pen up" << Qt::endl;
+
+    PEN_IS_DOWN = false;
 }
 
 void
 Canvas::setXT(qreal rx, qreal ry)
 {
+    qDebug() << "setxy: " << rx << ' ' << ry << Qt::endl;
+
     CURR_POS->setX(rx);
     CURR_POS->setY(ry);
 }
@@ -138,6 +323,8 @@ Canvas::setXT(qreal rx, qreal ry)
 void
 Canvas::setPC(uint color)
 {
+    qDebug() << "setpencolor: " << color << Qt::endl;
+
     pen.setColor(color);
     update();
 }
@@ -146,7 +333,14 @@ Canvas::setPC(uint color)
 void
 Canvas::stampoval(qreal rx, qreal ry)
 {
-    qDebug() << rx << ' ' << ry << Qt::endl;
+    qDebug() << "stampoval: " << rx << ' ' << ry << Qt::endl;
+    const QPointF center(CURR_POS->rx(), CURR_POS->ry());
+    circle_t cl;
+    cl.center = center;
+    cl.rx = rx;
+    cl.ry = ry;
+    CIRCLES.append(cl);
+    update();
 }
 
 

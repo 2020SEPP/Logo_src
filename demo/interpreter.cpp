@@ -15,7 +15,6 @@
  */
 Interpreter::Interpreter()
 {
-
 }
 
 char*

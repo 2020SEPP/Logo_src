@@ -30,20 +30,22 @@ Homepage::Homepage(QWidget *parent) : QMainWindow(parent)
 
 
 //    connect(console, SIGNAL(newLineWriten(QStringList)), canvas, SLOT(draw(qreal, qreal)));
+    connect(console, SIGNAL(newLine(QString)), canvas, SLOT(parse_line(QString)));
     connect(console, SIGNAL(drawLine(qreal, bool)), canvas, SLOT(drawLine(qreal, bool)));
     connect(console, SIGNAL(turnDirection(qreal, bool)), canvas, SLOT(turnDirection(qreal, bool)));
-    connect(console, SIGNAL(penDownUp(bool)), canvas, SLOT(penDownUp(bool)));
+//    connect(console, SIGNAL(penDownUp(bool)), canvas, SLOT(penDownUp(bool)));
     connect(console, SIGNAL(setXT(qreal, qreal)), canvas, SLOT(setXT(qreal, qreal)));
     connect(console, SIGNAL(setPC(uint)), canvas, SLOT(setPC(uint)));
     connect(console, SIGNAL(setBG(QString)), this, SLOT(setCanvasBG(QString)));
     connect(console, SIGNAL(stampoval(qreal, qreal)), canvas, SLOT(stampoval(qreal, qreal)));
+    connect(canvas, SIGNAL(setBG(QString)), this, SLOT(setCanvasBG(QString)));
 }
 
 // SLOT
 void
 Homepage::setCanvasBG(QString color)
 {
-    QString qss = "border: 2px solid darkgray; background-color: ";
+    QString qss = "border: 2px solid darkgray; background-color: #";
     qss.append(color);
     canvas->setStyleSheet(qss);
 }

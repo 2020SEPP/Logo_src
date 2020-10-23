@@ -24,6 +24,7 @@ protected:
 public slots:
 
 signals:
+    void newLine(QString);
     void newLineWriten(QStringList);
     void drawLine(qreal, bool);
     void turnDirection(qreal, bool);

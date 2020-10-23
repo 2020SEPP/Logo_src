@@ -18,12 +18,26 @@
     | 命令的编辑功能 | copy (Ctrl + C), Cut(Ctrl+X), Paste(Ctrl+V) 等 |
  */
 
+const QStringList INSTRUCTIONS = {
+    "fd", "bk", "rt", "lt",
+    "cs", "pu", "pd",
+    "setxy", "setpc", "setbg",
+    "stampoval", "repeat"
+};
+
+typedef struct circle
+{
+    QPointF center;
+    qreal rx;
+    qreal ry;
+} circle_t;
+
 class Canvas : public QWidget
 {
     Q_OBJECT
 public:
     explicit Canvas(QWidget *parent = nullptr);
-    ~Canvas() override { _lines.clear(); }
+    ~Canvas() override { LINES.clear(); }
 
 private:
     int CANVAS_WIDTH, CANVAS_HEIGHT;
@@ -33,29 +47,28 @@ private:
     bool PEN_IS_DOWN;
     QPen pen;
 
-    QVector<QVector<QPointF>> _lines;
     QVector<QLineF> LINES;
+    QVector<circle_t> CIRCLES;
 
 public:
     void addAngle(qreal);
 
 signals:
+    void setBG(QString);
 
 public slots:
+    void parse_line(QString);
     void drawLine(qreal, bool);
     void turnDirection(qreal, bool);
     void reset();
-    void penDownUp(bool);
+    void penDown();
+    void penUp();
     void setXT(qreal, qreal);
     void setPC(uint);
     void stampoval(qreal, qreal);
 
 protected:
     virtual void paintEvent(QPaintEvent *ev) override;
-    virtual void mouseMoveEvent(QMouseEvent *ev) override;
-    virtual void mousePressEvent(QMouseEvent *ev) override;
-    virtual void mouseReleaseEvent(QMouseEvent *ev) override;
-
 };
 
 #endif // CANVAS_H
